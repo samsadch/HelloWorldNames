@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "target": "hello-world-samsad",
+    "site": "hello-world-samsad",
     "public": ".",
     "ignore": [
       "firebase.json",
