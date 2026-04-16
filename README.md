@@ -1,4 +1,4 @@
-# NameDrop
+# HelloWorld
 
 A live collaborative name board where anyone can drop their name and see others appear in real time.
 

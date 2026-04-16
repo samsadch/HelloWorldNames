@@ -1,5 +1,5 @@
 /**
- * app.js — NameDrop
+ * app.js — HelloWorld
  * Handles: light/dark theme toggle with localStorage persistence
  * Runs synchronously to prevent FOUC (Flash of Unstyled Content)
  */
