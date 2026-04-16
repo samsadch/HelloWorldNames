@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NameDrop — Live Name Board</title>
+
+  <!-- Bootstrap 5.3 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+  <style>
+    body { background-color: var(--bs-tertiary-bg); }
+
+    .live-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      background: #198754;
+      border-radius: 50%;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+
+    .name-card { transition: transform .15s, box-shadow .15s; }
+    .name-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.1) !important; }
+    .name-card.new-entry { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both; }
+    @keyframes popIn {
+      from { opacity:0; transform:translateY(-10px) scale(.96); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
+    }
+
+    .avatar {
+      width:42px; height:42px; min-width:42px;
+      border-radius:50%;
+      background:linear-gradient(135deg,#0d6efd,#0a58ca);
+      color:#fff; font-weight:700; font-size:.85rem;
+      display:flex; align-items:center; justify-content:center;
+    }
+
+    .skeleton {
+      height:68px; border-radius:.75rem;
+      background:linear-gradient(90deg,var(--bs-secondary-bg) 25%,var(--bs-tertiary-bg) 50%,var(--bs-secondary-bg) 75%);
+      background-size:200% 100%;
+      animation:shimmer 1.6s ease-in-out infinite;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    .shake { animation:shake .4s ease; }
+    @keyframes shake {
+      0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)}
+      40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar bg-primary" id="mainNav" data-bs-theme="dark">
+    <div class="container">
+      <span class="navbar-brand fw-bold d-flex align-items-center gap-2">
+        <i class="bi bi-cloud-fill fs-5"></i> NameDrop
+      </span>
+      <button class="btn btn-outline-light btn-sm d-flex align-items-center gap-2" id="themeToggle" title="Toggle theme">
+        <i class="bi" id="themeIcon"></i>
+        <span id="themeLabel"></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero banner -->
+  <div class="bg-primary text-white py-4">
+    <div class="container text-center">
+      <h2 class="fw-bold mb-1">Live Name Board</h2>
+      <p class="mb-0 opacity-75 small">Drop your name — see it appear for everyone instantly</p>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="container py-4" style="max-width:600px">
+
+    <!-- Input card -->
+    <div class="card shadow-sm border-0 rounded-4 mb-4">
+      <div class="card-body p-4">
+        <label for="nameInput" class="form-label fw-semibold">
+          <i class="bi bi-person-fill text-primary me-1"></i>Your name
+        </label>
+        <div class="input-group input-group-lg">
+          <input
+            type="text"
+            id="nameInput"
+            class="form-control rounded-start-3"
+            placeholder="e.g. Ada Lovelace"
+            maxlength="60"
+            autocomplete="off"
+          />
+          <button class="btn btn-primary rounded-end-3 px-4" id="submitBtn">
+            <span id="btnLabel"><i class="bi bi-send-fill me-1"></i>Drop it</span>
+            <span id="btnSpinner" class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div id="nameError" class="invalid-feedback d-none">Please enter a name.</div>
+        <div id="statusBar" class="d-none mt-3"></div>
+      </div>
+    </div>
+
+    <!-- Feed header -->
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <h5 class="mb-0 fw-bold">Live board</h5>
+      <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle d-flex align-items-center gap-1 px-2">
+        <span class="live-dot"></span> Live
+      </span>
+      <span class="ms-auto text-muted small" id="nameCount"></span>
+    </div>
+
+    <!-- Skeleton loader -->
+    <div id="skeletonList" class="d-flex flex-column gap-2">
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+    </div>
+
+    <!-- Names list -->
+    <ul class="list-unstyled d-flex flex-column gap-2 d-none" id="namesList"></ul>
+
+    <!-- Empty state -->
+    <div id="emptyState" class="text-center py-5 text-muted d-none">
+      <i class="bi bi-cloud display-3 text-primary opacity-25 d-block mb-3"></i>
+      <p class="mb-0">No names yet — be the first to drop yours!</p>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-top py-3 text-center text-muted small bg-body-tertiary mt-4">
+    Powered by <strong class="text-primary">Firebase Firestore</strong> · Vanilla JS · No backend
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- ============================================================
+       🔥 FIREBASE — env.js must be loaded before the module script.
+       Copy env.example.js → env.js and fill in your config values.
+  ============================================================= -->
+  <script src="env.js"></script>
+  <script type="module">
+    import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc,
+      serverTimestamp, onSnapshot, query, orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    // ─── 🔑 FIREBASE CONFIG (loaded from env.js) ─────────────────
+    const firebaseConfig = window.__FIREBASE_CONFIG__;
+    if (!firebaseConfig) {
+      document.body.innerHTML = '<h2 style="color:red;text-align:center;margin-top:4rem">⚠️ Missing env.js — copy env.example.js → env.js and add your Firebase config.</h2>';
+      throw new Error("env.js not loaded");
+    }
+    // ─────────────────────────────────────────────────────────────
+
+    const app      = initializeApp(firebaseConfig);
+    const db       = getFirestore(app);
+    const namesCol = collection(db, "names");
+
+    const nameInput    = document.getElementById("nameInput");
+    const submitBtn    = document.getElementById("submitBtn");
+    const btnLabel     = document.getElementById("btnLabel");
+    const btnSpinner   = document.getElementById("btnSpinner");
+    const statusBar    = document.getElementById("statusBar");
+    const namesList    = document.getElementById("namesList");
+    const emptyState   = document.getElementById("emptyState");
+    const nameCount    = document.getElementById("nameCount");
+    const skeletonList = document.getElementById("skeletonList");
+
+    function setLoading(on) {
+      submitBtn.disabled = on;
+      btnLabel.classList.toggle("d-none", on);
+      btnSpinner.classList.toggle("d-none", !on);
+    }
+
+    function showStatus(msg, type = "success") {
+      const icon = type === "success" ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill";
+      statusBar.className = `alert alert-${type === "success" ? "success" : "danger"} d-flex align-items-center gap-2 py-2 mb-0`;
+      statusBar.innerHTML = `<i class="bi ${icon}"></i>${msg}`;
+      clearTimeout(statusBar._t);
+      statusBar._t = setTimeout(() => { statusBar.className = "d-none mt-3"; }, 3500);
+    }
+
+    function formatDate(ts) {
+      if (!ts) return "just now";
+      return ts.toDate().toLocaleString(undefined, {
+        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      });
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement("div");
+      d.appendChild(document.createTextNode(str));
+      return d.innerHTML;
+    }
+
+    function getInitials(name) {
+      return name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
+    }
+
+    function createCard(id, data, isNew = false) {
+      const li = document.createElement("li");
+      li.dataset.id = id;
+      li.className = `card border-0 shadow-sm rounded-4 name-card${isNew ? " new-entry" : ""}`;
+      li.innerHTML = `
+        <div class="card-body d-flex align-items-center gap-3 py-3">
+          <div class="avatar">${getInitials(data.name)}</div>
+          <div class="overflow-hidden flex-grow-1">
+            <div class="fw-semibold text-truncate">${escapeHtml(data.name)}</div>
+            <div class="text-muted small">
+              <i class="bi bi-clock me-1"></i>${formatDate(data.createdAt)}
+            </div>
+          </div>
+          ${isNew ? '<span class="badge bg-primary">New</span>' : ""}
+        </div>`;
+      return li;
+    }
+
+    async function submitName() {
+      const name = nameInput.value.trim();
+      if (!name) {
+        nameInput.classList.add("is-invalid", "shake");
+        setTimeout(() => nameInput.classList.remove("shake"), 500);
+        return;
+      }
+      nameInput.classList.remove("is-invalid");
+      setLoading(true);
+      try {
+        await addDoc(namesCol, { name, createdAt: serverTimestamp() });
+        nameInput.value = "";
+        showStatus(`"${name}" added to the board! ✓`, "success");
+      } catch (err) {
+        console.error(err);
+        showStatus("Couldn't save. Check your connection.", "danger");
+      } finally {
+        setLoading(false);
+        nameInput.focus();
+      }
+    }
+
+    submitBtn.addEventListener("click", submitName);
+    nameInput.addEventListener("keydown", e => { if (e.key === "Enter") submitName(); });
+
+    // Real-time listener
+    const q = query(namesCol, orderBy("createdAt", "desc"));
+    onSnapshot(q, snapshot => {
+      skeletonList.classList.add("d-none");
+
+      const docs = snapshot.docs;
+      const empty = docs.length === 0;
+      emptyState.classList.toggle("d-none", !empty);
+      namesList.classList.toggle("d-none", empty);
+      nameCount.textContent = empty ? "" : `${docs.length} ${docs.length === 1 ? "name" : "names"}`;
+
+      const isFirstRender = snapshot.docChanges().every(c => c.type === "added")
+                         && snapshot.docChanges().length === docs.length;
+      const addedIds = new Set(
+        snapshot.docChanges().filter(c => c.type === "added").map(c => c.doc.id)
+      );
+
+      namesList.innerHTML = "";
+      docs.forEach(doc => {
+        namesList.appendChild(
+          createCard(doc.id, doc.data(), !isFirstRender && addedIds.has(doc.id))
+        );
+      });
+    }, err => {
+      console.error(err);
+      skeletonList.classList.add("d-none");
+      showStatus("Real-time sync failed. Refresh the page.", "danger");
+    });
+  </script>
+
+  <!-- Theme toggle -->
+  <script>
+    (function () {
+      const html  = document.documentElement;
+      const btn   = document.getElementById("themeToggle");
+      const icon  = document.getElementById("themeIcon");
+      const label = document.getElementById("themeLabel");
+
+      function apply(theme) {
+        html.setAttribute("data-bs-theme", theme);
+        localStorage.setItem("namedrop-theme", theme);
+
+        if (theme === "dark") {
+          // Currently dark → button offers "switch to Light"
+          icon.className  = "bi bi-sun-fill text-warning";
+          label.textContent = "Light";
+        } else {
+          // Currently light → button offers "switch to Dark"
+          icon.className  = "bi bi-moon-stars-fill";
+          label.textContent = "Dark";
+        }
+      }
+
+      apply(localStorage.getItem("namedrop-theme") || "light");
+      btn.addEventListener("click", () =>
+        apply(html.getAttribute("data-bs-theme") === "dark" ? "light" : "dark")
+      );
+    })();
+  </script>
+</body>
+</html>
